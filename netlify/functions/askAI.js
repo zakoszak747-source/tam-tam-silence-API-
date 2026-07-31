@@ -1,4 +1,3 @@
-
 /**
  * Tam-Tam Silence — Assistant IA (Netlify Function)
  * ---------------------------------------------------
@@ -12,7 +11,14 @@
  *
  * Endpoint : POST https://<ton-site>.netlify.app/.netlify/functions/askAI
  * Corps attendu (JSON) : { "message": "...", "mode": "eleve" | "prof" | "exercice" }
+ *
+ * Limite quotidienne : partagée entre index.html et simulations.html, pour ne
+ * jamais dépasser le quota gratuit de Google (1500 questions/jour au total).
  */
+
+const { connectLambda, getStore } = require("@netlify/blobs");
+
+const DAILY_LIMIT = 300; // marge confortable sous le quota gratuit de 1500/jour
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -40,6 +46,8 @@ const SYSTEM_PROMPTS = {
 };
 
 exports.handler = async function (event) {
+  connectLambda(event);
+
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 204, headers: CORS_HEADERS, body: "" };
   }
@@ -53,6 +61,25 @@ exports.handler = async function (event) {
       statusCode: 500,
       headers: CORS_HEADERS,
       body: JSON.stringify({ error: "Clé IA non configurée côté serveur." })
+    };
+  }
+
+  // ---------- Limite quotidienne (compteur partagé) ----------
+  const today = new Date().toISOString().slice(0, 10); // ex: "2026-07-31"
+  const usageStore = getStore({ name: "ai-usage", consistency: "strong" });
+  let todayCount = 0;
+  try {
+    todayCount = (await usageStore.get(today, { type: "json" })) || 0;
+  } catch (e) {
+    todayCount = 0; // en cas de souci de lecture, on laisse passer plutôt que de bloquer
+  }
+  if (todayCount >= DAILY_LIMIT) {
+    return {
+      statusCode: 429,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({
+        error: "Limite quotidienne de questions atteinte. Réessaie demain. / Daily question limit reached. Try again tomorrow."
+      })
     };
   }
 
@@ -71,6 +98,12 @@ exports.handler = async function (event) {
   }
   if (message.length > 2000) {
     return { statusCode: 400, headers: CORS_HEADERS, body: JSON.stringify({ error: "Message trop long (2000 caractères max)" }) };
+  }
+
+  try {
+    await usageStore.setJSON(today, todayCount + 1);
+  } catch (e) {
+    // si l'écriture échoue, on continue quand même plutôt que de bloquer l'utilisateur
   }
 
   try {
