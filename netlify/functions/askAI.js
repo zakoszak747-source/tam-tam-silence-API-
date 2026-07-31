@@ -118,7 +118,7 @@ exports.handler = async function (event) {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_PROMPTS[mode] }] },
           contents: [{ role: "user", parts: [{ text: message }] }],
-          generationConfig: { temperature: 0.6, maxOutputTokens: 2048, thinkingConfig: { thinkingBudget: 0 } }
+          generationConfig: { temperature: 0.6, maxOutputTokens: 4096 }
         })
       }
     );
