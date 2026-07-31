@@ -118,7 +118,7 @@ exports.handler = async function (event) {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_PROMPTS[mode] }] },
           contents: [{ role: "user", parts: [{ text: message }] }],
-          generationConfig: { temperature: 0.6, maxOutputTokens: 1024 }
+          generationConfig: { temperature: 0.6, maxOutputTokens: 2048, thinkingConfig: { thinkingBudget: 0 } }
         })
       }
     );
@@ -150,7 +150,12 @@ exports.handler = async function (event) {
       };
     }
 
-    return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify({ reply: text }) };
+    const finishReason = data.candidates && data.candidates[0] ? data.candidates[0].finishReason : null;
+    const finalText = finishReason === "MAX_TOKENS"
+      ? text + "\n\n(…réponse coupée car trop longue — pose une question plus précise ou demande la suite.)"
+      : text;
+
+    return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify({ reply: finalText }) };
   } catch (err) {
     return {
       statusCode: 500,
