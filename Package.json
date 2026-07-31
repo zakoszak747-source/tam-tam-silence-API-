@@ -1,8 +1,0 @@
-{
-  "name": "tam-tam-silence-api",
-  "private": true,
-  "dependencies": {
-    "@netlify/blobs": "^10.0.0"
-  }
-}
-
